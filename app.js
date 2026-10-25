@@ -84,6 +84,17 @@ function toast(msg) {
 function showMsg(box, msg) { box.textContent = msg; box.classList.remove("hidden"); }
 function hideMsg(box) { box.textContent = ""; box.classList.add("hidden"); }
 
+// Beklenmeyen bir hata olursa sessiz kalmasın, ekranda görünsün
+window.addEventListener("error", (e) => {
+  if (/ResizeObserver/.test(e.message || "")) return;
+  console.error(e.error || e.message);
+  toast("Bir hata oluştu: " + (e.message || "bilinmeyen"));
+});
+window.addEventListener("unhandledrejection", (e) => {
+  console.error(e.reason);
+  toast("Bir hata oluştu: " + ((e.reason && (e.reason.code || e.reason.message)) || "bilinmeyen"));
+});
+
 /* ---------- Tarih (hep YEREL saat; toISOString KULLANMIYORUZ) ---------- */
 const pad = (n) => String(n).padStart(2, "0");
 const toStr = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -150,6 +161,7 @@ const state = {
   profile: null,       // { studentNo, department, birthDate, photo, budget:{amountKurus,startDate}, period }
   expenses: [],        // [{id, amountKurus, category, note, date, createdAt}]
   unsub: null,
+  unsubProfile: null,
   editingBudget: false,
   selectedCat: null,
   periodDraft: null    // { startDate, len, endDate }
@@ -295,17 +307,23 @@ form.addEventListener("submit", async (e) => {
    ===================================================================== */
 let authRun = 0;
 
-async function loadProfile() {
-  const base = { studentNo: fromEmail(state.user.email) };
-  try {
-    const snap = await getDoc(userRef());
-    state.profile = { ...base, ...(snap.exists() ? snap.data() : {}) };
-    state.profile.studentNo = base.studentNo;
-  } catch (err) {
-    console.error(err);
-    state.profile = base;
-    toast("Profil okunamadı. Firestore kurallarını güncelle (README).");
-  }
+// Profil canlı okunur: Firebase konsolundan yapılan değişiklikler sayfayı yenilemeden görünür.
+// Öğrenci numarası her zaman giriş hesabından (Authentication) gelir, Firestore'dan değil.
+function subscribeProfile() {
+  return new Promise((resolve) => {
+    if (state.unsubProfile) state.unsubProfile();
+    const base = { studentNo: fromEmail(state.user.email) };
+    let first = true;
+    state.unsubProfile = onSnapshot(userRef(), (snap) => {
+      state.profile = { ...base, ...(snap.exists() ? snap.data() : {}), studentNo: base.studentNo };
+      if (first) { first = false; resolve(); } else renderAll();
+    }, (err) => {
+      console.error(err);
+      if (!state.profile) state.profile = base;
+      toast("Profil okunamadı. Firestore kurallarını güncelle (README).");
+      if (first) { first = false; resolve(); }
+    });
+  });
 }
 
 function subscribeExpenses() {
@@ -329,7 +347,7 @@ if (configured) {
 
     if (user) {
       state.user = user;
-      await loadProfile();
+      await subscribeProfile();
       if (run !== authRun) return;
       state.expenses = [];
       state.editingBudget = false;
@@ -341,6 +359,7 @@ if (configured) {
       maybeShowBirthday();
     } else {
       if (state.unsub) { state.unsub(); state.unsub = null; }
+      if (state.unsubProfile) { state.unsubProfile(); state.unsubProfile = null; }
       state.user = null; state.profile = null; state.expenses = [];
       appScreen.classList.add("hidden");
       authScreen.classList.remove("hidden");
@@ -367,6 +386,7 @@ function resetDeleteUi() {
   $("delete-form").classList.add("hidden");
   $("btn-delete-toggle").classList.remove("hidden");
   $("delete-pw").value = "";
+  $("delete-confirm").checked = false;
   hideMsg($("delete-error"));
 }
 $("btn-delete-toggle").addEventListener("click", () => {
@@ -385,7 +405,7 @@ $("delete-form").addEventListener("submit", async (e) => {
 
   const pw = $("delete-pw").value;
   if (!pw) return showMsg(errBox, "Doğrulama için şifreni gir.");
-  if (!confirm("Hesabın ve tüm verilerin KALICI olarak silinecek. Emin misin?")) return;
+  if (!$("delete-confirm").checked) return showMsg(errBox, "Devam etmek için onay kutusunu işaretle.");
 
   deleteBusy = true;
   const btn = $("delete-submit");
@@ -397,6 +417,7 @@ $("delete-form").addEventListener("submit", async (e) => {
     // 2) Veriler silinir (kurallar yüzünden hesap silinmeden ÖNCE yapılmalı)
     const uid = state.user.uid;
     if (state.unsub) { state.unsub(); state.unsub = null; }
+    if (state.unsubProfile) { state.unsubProfile(); state.unsubProfile = null; }
     const snap = await getDocs(collection(db, "users", uid, "expenses"));
     let batch = writeBatch(db), count = 0;
     for (const d of snap.docs) {
@@ -418,7 +439,7 @@ $("delete-form").addEventListener("submit", async (e) => {
     } else {
       showMsg(errBox, "Hesap silinemedi. İnternetini kontrol edip tekrar dene.");
     }
-    if (auth.currentUser && !state.unsub) subscribeExpenses();
+    if (auth.currentUser && !state.unsub) { subscribeExpenses(); subscribeProfile(); }
   } finally {
     deleteBusy = false;
     btn.disabled = false; btn.textContent = "Hesabımı Kalıcı Olarak Sil";
@@ -651,15 +672,27 @@ function renderExpenses() {
         el("span", { class: "amt", text: fmtMoney(e.amountKurus) }),
         el("button", {
           type: "button", class: "del", "aria-label": "Harcamayı sil", text: "🗑",
-          onclick: () => deleteExpense(e.id)
+          onclick: (ev) => armDelete(ev.currentTarget, e.id)
         })));
     }
     list.append(day);
   }
 }
 
+// İki dokunuşla silme: ilk dokunuş "Sil?" der, 3 saniye içinde tekrar dokunursan siler
+function armDelete(btn, id) {
+  if (btn.dataset.armed === "1") { deleteExpense(id); return; }
+  btn.dataset.armed = "1";
+  btn.textContent = "Sil?";
+  btn.style.width = "auto"; btn.style.padding = "0 12px"; btn.style.flex = "0 0 auto";
+  setTimeout(() => {
+    if (!btn.isConnected) return;
+    btn.dataset.armed = ""; btn.textContent = "🗑";
+    btn.style.width = ""; btn.style.padding = ""; btn.style.flex = "";
+  }, 3000);
+}
+
 async function deleteExpense(id) {
-  if (!confirm("Bu harcama silinsin mi?")) return;
   try {
     await deleteDoc(doc(db, "users", state.user.uid, "expenses", id));
     toast("Harcama silindi.");

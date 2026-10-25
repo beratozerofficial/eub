@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=3" />
 </head>
 <body>
 
@@ -253,6 +253,11 @@
           <label for="delete-pw">Şifren (doğrulama için)</label>
           <input id="delete-pw" type="password" autocomplete="current-password" placeholder="Şifreni gir" />
 
+          <label class="check" for="delete-confirm">
+            <input type="checkbox" id="delete-confirm" />
+            <span>Hesabımın ve tüm verilerimin kalıcı olarak silineceğini anlıyorum.</span>
+          </label>
+
           <p id="delete-error" class="error hidden" role="alert"></p>
 
           <button type="submit" id="delete-submit" class="danger-btn">Hesabımı Kalıcı Olarak Sil</button>
@@ -262,6 +267,6 @@
     </main>
   </div>
 
-  <script type="module" src="app.js"></script>
+  <script type="module" src="app.js?v=3"></script>
 </body>
 </html>
