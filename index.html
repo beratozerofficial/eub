@@ -237,7 +237,27 @@
           <div class="row"><span class="muted">Yaş</span><strong id="profile-age">-</strong></div>
         </div>
 
+        <div class="card contact-card">
+          <h3>Geliştiricimizle iletişime geçin</h3>
+          <p class="hint">Öneri, hata ya da fikirlerin için Instagram'dan yazabilirsin.</p>
+          <a class="contact-link" href="https://www.instagram.com/beratengineer/" target="_blank" rel="noopener noreferrer">📸 @beratengineer</a>
+        </div>
+
         <button id="logout-btn" class="danger-btn">Çıkış Yap</button>
+        <button type="button" id="btn-delete-toggle" class="outline-danger-btn">🗑 Hesabı Sil</button>
+
+        <form id="delete-form" class="card danger-card hidden" novalidate autocomplete="off">
+          <h3>Hesabı kalıcı olarak sil</h3>
+          <p class="hint">Bu işlem geri alınamaz. Hesabın, bütçen, tüm harcamaların ve profil fotoğrafın silinir. İstersen aynı öğrenci numarasıyla sonradan yeniden kayıt olabilirsin.</p>
+
+          <label for="delete-pw">Şifren (doğrulama için)</label>
+          <input id="delete-pw" type="password" autocomplete="current-password" placeholder="Şifreni gir" />
+
+          <p id="delete-error" class="error hidden" role="alert"></p>
+
+          <button type="submit" id="delete-submit" class="danger-btn">Hesabımı Kalıcı Olarak Sil</button>
+          <button type="button" id="delete-cancel" class="secondary-btn">Vazgeç</button>
+        </form>
       </section>
     </main>
   </div>

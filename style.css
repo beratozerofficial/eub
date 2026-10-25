@@ -242,6 +242,19 @@ input:focus, select:focus { border-color: var(--blue-2); box-shadow: 0 0 0 3px r
 .info-rows .row:last-child { border-bottom: 0; }
 .info-rows strong { text-align: right; }
 
+.contact-link {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  margin-top: 12px; padding: 13px; min-height: 48px; border-radius: 12px;
+  background: linear-gradient(135deg, #f58529, #dd2a7b, #8134af);
+  color: #fff; font-weight: 700; font-size: 16px; text-decoration: none;
+}
+.outline-danger-btn {
+  display: block; width: 100%; margin-top: 12px; padding: 13px; min-height: 48px;
+  border: 1.5px solid var(--danger); background: #fff; color: var(--danger);
+  border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer;
+}
+.danger-card { border: 1.5px solid #f3c5c1; margin-top: 12px; }
+
 /* ---------- Doğum günü ---------- */
 .bday {
   position: fixed; inset: 0; z-index: 200; overflow-y: auto;
