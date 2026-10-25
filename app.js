@@ -2,11 +2,11 @@ import { firebaseConfig } from "./firebase-config.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
 import {
   getAuth, onAuthStateChanged, createUserWithEmailAndPassword,
-  signInWithEmailAndPassword, signOut, reauthenticateWithCredential, EmailAuthProvider, deleteUser
+  signInWithEmailAndPassword, signOut, reauthenticateWithCredential, EmailAuthProvider, deleteUser, updatePassword
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import {
   getFirestore, doc, getDoc, setDoc, addDoc, deleteDoc, collection, getDocs, writeBatch,
-  query, orderBy, onSnapshot, serverTimestamp
+  query, orderBy, where, limitToLast, onSnapshot, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 /* =====================================================================
@@ -54,6 +54,10 @@ const DEPARTMENT_GROUPS = [
 const ALL_DEPARTMENTS = new Set(DEPARTMENT_GROUPS.flatMap(([, items]) => items));
 
 const MAX_AMOUNT_KURUS = 100000000 * 100; // 100 milyon TL
+
+// Kullanıcı adı: 3-20 karakter; harf, rakam, nokta, alt çizgi (herkes aynı adı alabilir, ayırt eden öğrenci numarasıdır)
+const USERNAME_RE = /^[\p{L}\p{N}._]{3,20}$/u;
+const USERNAME_MSG = "Kullanıcı adı 3-20 karakter olmalı; sadece harf, rakam, nokta ve alt çizgi kullanabilirsin (boşluk olmasın).";
 
 /* =====================================================================
    KÜÇÜK YARDIMCILAR
@@ -162,6 +166,16 @@ const state = {
   expenses: [],        // [{id, amountKurus, category, note, date, createdAt}]
   unsub: null,
   unsubProfile: null,
+  handle: null,            // herkese açık küçük profil: { uid, studentNo, username }
+  unsubHandle: null,
+  handleCache: new Map(),  // öğrenciNo -> { val: {uid, username} | null, t: zaman }
+  chats: [],
+  chatsServer: new Set(),  // sunucuda gerçekten var olan sohbetler
+  unsubChats: null,
+  activeChat: null,        // { chatId, members, memberNos, partner:{uid,no,username} }
+  messages: [],
+  unsubMsgs: null,
+  stickBottom: false,
   editingBudget: false,
   selectedCat: null,
   periodDraft: null    // { startDate, len, endDate }
@@ -226,6 +240,7 @@ function setMode(newMode) {
   document.querySelectorAll(".reg-only").forEach((n) => n.classList.toggle("hidden", !isReg));
   submitBtn.textContent = isReg ? "Kayıt Ol" : "Giriş Yap";
   inputPw.autocomplete = isReg ? "new-password" : "current-password";
+  inputNo.inputMode = isReg ? "numeric" : "text";
   welcomeText.textContent = isReg
     ? `Hoş geldin, ${UNIVERSITY}'lı! 🎓 Öğrenci numaranı gir ve kayıt ol bakalım.`
     : `Tekrar hoş geldin, ${UNIVERSITY}'lı! 🎓 Öğrenci numaranla giriş yap.`;
@@ -258,8 +273,11 @@ form.addEventListener("submit", async (e) => {
   if (!password) return showMsg(errorBox, "Şifreni gir.");
   if (password.length < 6) return showMsg(errorBox, "Şifre en az 6 karakter olmalı.");
 
-  let department = "", birthDate = "";
+  let department = "", birthDate = "", username = "";
   if (mode === "register") {
+    if (!/^\d{4,15}$/.test(studentNo)) return showMsg(errorBox, "Öğrenci numarası sadece rakamlardan oluşmalı (4-15 hane).");
+    username = $("reg-username").value.trim();
+    if (!USERNAME_RE.test(username)) return showMsg(errorBox, USERNAME_MSG);
     department = $("department").value;
     birthDate = $("birthDate").value;
     if (!ALL_DEPARTMENTS.has(department)) return showMsg(errorBox, "Bölümünü seç.");
@@ -280,6 +298,9 @@ form.addEventListener("submit", async (e) => {
         try {
           await setDoc(doc(db, "users", cred.user.uid), {
             studentNo, department, birthDate, createdAt: serverTimestamp()
+          });
+          await setDoc(doc(db, "handles", studentNo), {
+            uid: cred.user.uid, studentNo, username, createdAt: serverTimestamp()
           });
         } catch (dbErr) {
           console.warn("Profil kaydı yazılamadı:", dbErr);
@@ -348,11 +369,13 @@ if (configured) {
     if (user) {
       state.user = user;
       await subscribeProfile();
+      await subscribeHandle();
       if (run !== authRun) return;
       state.expenses = [];
       state.editingBudget = false;
       state.periodDraft = null;
       subscribeExpenses();
+      subscribeChats();
       authScreen.classList.add("hidden");
       appScreen.classList.remove("hidden");
       switchTab("home");
@@ -360,6 +383,8 @@ if (configured) {
     } else {
       if (state.unsub) { state.unsub(); state.unsub = null; }
       if (state.unsubProfile) { state.unsubProfile(); state.unsubProfile = null; }
+      teardownSocial();
+      state.handle = null; state.handleCache = new Map();
       state.user = null; state.profile = null; state.expenses = [];
       appScreen.classList.add("hidden");
       authScreen.classList.remove("hidden");
@@ -418,6 +443,8 @@ $("delete-form").addEventListener("submit", async (e) => {
     const uid = state.user.uid;
     if (state.unsub) { state.unsub(); state.unsub = null; }
     if (state.unsubProfile) { state.unsubProfile(); state.unsubProfile = null; }
+    const hadHandle = !!state.handle, handleNo = state.profile.studentNo;
+    teardownSocial();
     const snap = await getDocs(collection(db, "users", uid, "expenses"));
     let batch = writeBatch(db), count = 0;
     for (const d of snap.docs) {
@@ -425,6 +452,7 @@ $("delete-form").addEventListener("submit", async (e) => {
       if (++count === 400) { await batch.commit(); batch = writeBatch(db); count = 0; }
     }
     batch.delete(doc(db, "users", uid));
+    if (hadHandle) batch.delete(doc(db, "handles", handleNo));
     await batch.commit();
 
     // 3) Hesap (öğrenci numarası) Firebase Authentication'dan silinir
@@ -439,7 +467,7 @@ $("delete-form").addEventListener("submit", async (e) => {
     } else {
       showMsg(errBox, "Hesap silinemedi. İnternetini kontrol edip tekrar dene.");
     }
-    if (auth.currentUser && !state.unsub) { subscribeExpenses(); subscribeProfile(); }
+    if (auth.currentUser && !state.unsub) { subscribeExpenses(); subscribeProfile(); subscribeHandle(); subscribeChats(); }
   } finally {
     deleteBusy = false;
     btn.disabled = false; btn.textContent = "Hesabımı Kalıcı Olarak Sil";
@@ -521,12 +549,13 @@ function renderAll() {
   renderHome();
   renderExpenses();
   renderReports();
+  renderMessages();
   renderProfile();
 }
 
 /* ---------- ANA SAYFA ---------- */
 function renderHome() {
-  $("user-label").textContent = state.profile.studentNo;
+  $("user-label").textContent = (state.handle && state.handle.username) || state.profile.studentNo;
   const b = getBudget();
   const showForm = !b || state.editingBudget;
   $("budget-form").classList.toggle("hidden", !showForm);
@@ -917,6 +946,9 @@ function safePhoto(p) {
 function renderProfile() {
   const p = state.profile;
   $("profile-no").textContent = p.studentNo;
+  $("profile-username").textContent = state.handle && state.handle.username ? "@" + state.handle.username : "";
+  const uInput = $("username-input");
+  if (document.activeElement !== uInput) uInput.value = (state.handle && state.handle.username) || "";
   $("profile-dept").textContent = p.department || "-";
   if (validDateStr(p.birthDate)) {
     $("profile-birth").textContent = fmtFull(p.birthDate);
