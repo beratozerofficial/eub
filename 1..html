@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b2a5b" />
+  <title>EUB Harcama Takip</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Açılış ekranı (Firebase oturumu kontrol edilirken görünür) -->
+  <div id="splash" class="splash">
+    <div class="logo-circle">EUB</div>
+    <p>Yükleniyor...</p>
+  </div>
+
+  <!-- Firebase ayarı yapılmadıysa uyarı -->
+  <div id="config-warning" class="config-warning hidden">
+    ⚠️ Firebase ayarları henüz girilmemiş. <code>firebase-config.js</code> dosyasını doldur (README'de anlatıyor).
+  </div>
+
+  <!-- ===================== GİRİŞ / KAYIT EKRANI ===================== -->
+  <main id="auth-screen" class="auth-screen hidden">
+    <div class="auth-card">
+      <div class="logo-circle">EUB</div>
+      <h1>EUB Harcama Takip</h1>
+      <p class="subtitle">European University of Berat</p>
+
+      <p class="welcome" id="welcome-text">
+        Hoşgeldin EUB'li! 🎓<br />Öğrenci numaranı gir ve kayıt ol bakalım.
+      </p>
+
+      <div class="switch" role="tablist">
+        <button type="button" id="btn-mode-login" class="switch-btn active" role="tab">Giriş Yap</button>
+        <button type="button" id="btn-mode-register" class="switch-btn" role="tab">Kayıt Ol</button>
+      </div>
+
+      <form id="auth-form" novalidate autocomplete="on">
+        <label for="studentNo">Öğrenci Numarası</label>
+        <input id="studentNo" name="username" type="text" inputmode="text"
+               autocomplete="username" autocapitalize="none" autocorrect="off"
+               spellcheck="false" placeholder="Örn: 230123" maxlength="20" required />
+
+        <label for="password">Şifre</label>
+        <div class="pw-wrap">
+          <input id="password" name="password" type="password"
+                 autocomplete="current-password" placeholder="En az 6 karakter" required />
+          <button type="button" id="toggle-pw" class="pw-toggle" aria-label="Şifreyi göster/gizle">👁</button>
+        </div>
+
+        <div id="confirm-wrap" class="hidden">
+          <label for="password2">Şifre (Tekrar)</label>
+          <input id="password2" name="password2" type="password"
+                 autocomplete="new-password" placeholder="Şifreni tekrar gir" />
+        </div>
+
+        <p id="auth-error" class="error hidden" role="alert"></p>
+
+        <button type="submit" id="auth-submit" class="primary-btn">Giriş Yap</button>
+      </form>
+    </div>
+  </main>
+
+  <!-- ===================== ANA UYGULAMA ===================== -->
+  <div id="app-screen" class="app-screen hidden">
+
+    <!-- Masaüstünde sol menü, telefonda alt menü olur (aynı butonlar) -->
+    <nav class="nav" aria-label="Ana menü">
+      <div class="nav-brand">
+        <div class="logo-circle small">EUB</div>
+        <span>Harcama Takip</span>
+      </div>
+      <button class="nav-btn active" data-tab="home"><span class="ico">🏠</span><span class="lbl">Ana Sayfa</span></button>
+      <button class="nav-btn" data-tab="expenses"><span class="ico">💸</span><span class="lbl">Harcamalar</span></button>
+      <button class="nav-btn" data-tab="reports"><span class="ico">📊</span><span class="lbl">Raporlar</span></button>
+      <button class="nav-btn" data-tab="profile"><span class="ico">👤</span><span class="lbl">Profil</span></button>
+    </nav>
+
+    <main class="content">
+      <section id="tab-home" class="tab active">
+        <h2>Hoş geldin, <span id="user-label"></span> 👋</h2>
+        <div class="placeholder">Ana Sayfa bölümü<br /><small>Yakında burayı dolduracağız</small></div>
+      </section>
+
+      <section id="tab-expenses" class="tab">
+        <h2>Harcamalar</h2>
+        <div class="placeholder">Harcamalar bölümü<br /><small>Yakında burayı dolduracağız</small></div>
+      </section>
+
+      <section id="tab-reports" class="tab">
+        <h2>Raporlar</h2>
+        <div class="placeholder">Raporlar bölümü<br /><small>Yakında burayı dolduracağız</small></div>
+      </section>
+
+      <section id="tab-profile" class="tab">
+        <h2>Profil</h2>
+        <div class="profile-card">
+          <div class="avatar" id="avatar">?</div>
+          <div>
+            <div class="muted">Öğrenci Numarası</div>
+            <div class="big" id="profile-no">-</div>
+          </div>
+        </div>
+        <button id="logout-btn" class="danger-btn">Çıkış Yap</button>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
