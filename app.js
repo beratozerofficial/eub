@@ -2,10 +2,10 @@ import { firebaseConfig } from "./firebase-config.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
 import {
   getAuth, onAuthStateChanged, createUserWithEmailAndPassword,
-  signInWithEmailAndPassword, signOut, reauthenticateWithCredential, EmailAuthProvider
+  signInWithEmailAndPassword, signOut, reauthenticateWithCredential, EmailAuthProvider, deleteUser
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import {
-  getFirestore, doc, getDoc, setDoc, addDoc, deleteDoc, collection,
+  getFirestore, doc, getDoc, setDoc, addDoc, deleteDoc, collection, getDocs, writeBatch,
   query, orderBy, onSnapshot, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
@@ -345,6 +345,7 @@ if (configured) {
       appScreen.classList.add("hidden");
       authScreen.classList.remove("hidden");
       closeBirthday();
+      resetDeleteUi();
       form.reset();
       setMode("login");
     }
@@ -359,6 +360,69 @@ if (configured) {
 
 $("logout-btn").addEventListener("click", async () => {
   try { await signOut(auth); } catch (err) { console.error(err); toast("Çıkış yapılamadı."); }
+});
+
+/* ---------- HESABI SİL ---------- */
+function resetDeleteUi() {
+  $("delete-form").classList.add("hidden");
+  $("btn-delete-toggle").classList.remove("hidden");
+  $("delete-pw").value = "";
+  hideMsg($("delete-error"));
+}
+$("btn-delete-toggle").addEventListener("click", () => {
+  $("delete-form").classList.remove("hidden");
+  $("btn-delete-toggle").classList.add("hidden");
+  $("delete-pw").focus();
+});
+$("delete-cancel").addEventListener("click", resetDeleteUi);
+
+let deleteBusy = false;
+$("delete-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (deleteBusy || !state.user) return;
+  const errBox = $("delete-error");
+  hideMsg(errBox);
+
+  const pw = $("delete-pw").value;
+  if (!pw) return showMsg(errBox, "Doğrulama için şifreni gir.");
+  if (!confirm("Hesabın ve tüm verilerin KALICI olarak silinecek. Emin misin?")) return;
+
+  deleteBusy = true;
+  const btn = $("delete-submit");
+  btn.disabled = true; btn.textContent = "Siliniyor...";
+  try {
+    // 1) Şifre doğrulaması
+    await reauthenticateWithCredential(auth.currentUser, EmailAuthProvider.credential(state.user.email, pw));
+
+    // 2) Veriler silinir (kurallar yüzünden hesap silinmeden ÖNCE yapılmalı)
+    const uid = state.user.uid;
+    if (state.unsub) { state.unsub(); state.unsub = null; }
+    const snap = await getDocs(collection(db, "users", uid, "expenses"));
+    let batch = writeBatch(db), count = 0;
+    for (const d of snap.docs) {
+      batch.delete(d.ref);
+      if (++count === 400) { await batch.commit(); batch = writeBatch(db); count = 0; }
+    }
+    batch.delete(doc(db, "users", uid));
+    await batch.commit();
+
+    // 3) Hesap (öğrenci numarası) Firebase Authentication'dan silinir
+    await deleteUser(auth.currentUser);
+    toast("Hesabın silindi. Görüşmek üzere 👋");
+  } catch (err) {
+    console.error(err);
+    if (err && (err.code === "auth/wrong-password" || err.code === "auth/invalid-credential")) {
+      showMsg(errBox, "Şifre yanlış.");
+    } else if (err && err.code && err.code.startsWith("auth/")) {
+      showMsg(errBox, errorText(err));
+    } else {
+      showMsg(errBox, "Hesap silinemedi. İnternetini kontrol edip tekrar dene.");
+    }
+    if (auth.currentUser && !state.unsub) subscribeExpenses();
+  } finally {
+    deleteBusy = false;
+    btn.disabled = false; btn.textContent = "Hesabımı Kalıcı Olarak Sil";
+  }
 });
 
 /* =====================================================================

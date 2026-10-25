@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b2a5b" />
+  <title>European University of Berat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Açılış ekranı -->
+  <div id="splash" class="splash">
+    <div class="logo-circle">🎓</div>
+    <p>Yükleniyor...</p>
+  </div>
+
+  <!-- Firebase ayarı yapılmadıysa uyarı -->
+  <div id="config-warning" class="config-warning hidden">
+    ⚠️ Firebase ayarları henüz girilmemiş. <code>firebase-config.js</code> dosyasını doldur.
+  </div>
+
+  <!-- Küçük bildirim kutusu -->
+  <div id="toast" class="toast hidden" role="status"></div>
+
+  <!-- ===================== DOĞUM GÜNÜ EKRANI ===================== -->
+  <div id="bday" class="bday hidden" role="dialog" aria-modal="true" aria-label="Doğum günü kutlaması">
+    <canvas id="confetti"></canvas>
+    <div class="bday-box">
+      <div class="bday-emoji">🎂 🎈 🎉</div>
+      <h1 class="bday-title">
+        <span>Happy</span> <span>Birthday</span> <span>To</span> <span>You</span>
+      </h1>
+      <p id="bday-name" class="bday-name"></p>
+      <button type="button" id="bday-close" class="bday-btn">Teşekkürler 🎁</button>
+    </div>
+  </div>
+
+  <!-- ===================== GİRİŞ / KAYIT EKRANI ===================== -->
+  <main id="auth-screen" class="auth-screen hidden">
+    <div class="auth-card">
+      <div class="logo-circle">🎓</div>
+      <h1>European University of Berat</h1>
+      <p class="subtitle">Harcama Takip</p>
+
+      <p class="welcome" id="welcome-text"></p>
+
+      <div class="switch" role="tablist">
+        <button type="button" id="btn-mode-login" class="switch-btn active" role="tab">Giriş Yap</button>
+        <button type="button" id="btn-mode-register" class="switch-btn" role="tab">Kayıt Ol</button>
+      </div>
+
+      <form id="auth-form" novalidate autocomplete="on">
+        <label for="studentNo">Öğrenci Numarası</label>
+        <input id="studentNo" name="username" type="text" inputmode="text"
+               autocomplete="username" autocapitalize="none" autocorrect="off"
+               spellcheck="false" placeholder="Örn: 230123" maxlength="20" required />
+
+        <div class="reg-only hidden">
+          <label for="department">Bölüm</label>
+          <select id="department">
+            <option value="">Bölümünü seç</option>
+          </select>
+
+          <label for="birthDate">Doğum Günü</label>
+          <input id="birthDate" type="date" />
+        </div>
+
+        <label for="password">Şifre</label>
+        <div class="pw-wrap">
+          <input id="password" name="password" type="password"
+                 autocomplete="current-password" placeholder="En az 6 karakter" required />
+          <button type="button" id="toggle-pw" class="pw-toggle" aria-label="Şifreyi göster/gizle">👁</button>
+        </div>
+
+        <div class="reg-only hidden">
+          <label for="password2">Şifre (Tekrar)</label>
+          <input id="password2" name="password2" type="password"
+                 autocomplete="new-password" placeholder="Şifreni tekrar gir" />
+        </div>
+
+        <p id="auth-error" class="error hidden" role="alert"></p>
+
+        <button type="submit" id="auth-submit" class="primary-btn">Giriş Yap</button>
+      </form>
+    </div>
+  </main>
+
+  <!-- ===================== ANA UYGULAMA ===================== -->
+  <div id="app-screen" class="app-screen hidden">
+
+    <nav class="nav" aria-label="Ana menü">
+      <div class="nav-brand">
+        <div class="logo-circle small">🎓</div>
+        <span>European University of Berat</span>
+      </div>
+      <button class="nav-btn active" data-tab="home"><span class="ico">🏠</span><span class="lbl">Ana Sayfa</span></button>
+      <button class="nav-btn" data-tab="expenses"><span class="ico">💸</span><span class="lbl">Harcamalar</span></button>
+      <button class="nav-btn" data-tab="reports"><span class="ico">📊</span><span class="lbl">Raporlar</span></button>
+      <button class="nav-btn" data-tab="profile"><span class="ico">👤</span><span class="lbl">Profil</span></button>
+    </nav>
+
+    <main class="content">
+
+      <!-- ============ ANA SAYFA ============ -->
+      <section id="tab-home" class="tab active">
+        <h2>Hoş geldin, <span id="user-label"></span> 👋</h2>
+
+        <div id="home-remaining" class="remaining-card hidden">
+          <div class="remaining-label">Kalan Para</div>
+          <div id="remaining-amount" class="remaining-amount">0,00 ₺</div>
+          <button type="button" id="btn-edit-budget" class="link-btn">✏️ Bütçeyi düzenle</button>
+        </div>
+
+        <form id="budget-form" class="card hidden" novalidate autocomplete="off">
+          <h3 id="budget-title">Toplam kaç TL paran var?</h3>
+          <p class="hint" id="budget-hint">Bütçeni gir ve şifrenle doğrula. Daha sonra istersen düzeltebilirsin.</p>
+
+          <label for="budget-amount">Toplam bütçe (TL)</label>
+          <input id="budget-amount" type="text" inputmode="decimal" placeholder="Örn: 15000" maxlength="16" />
+
+          <label for="budget-start">Başlangıç tarihi</label>
+          <input id="budget-start" type="date" />
+          <p class="hint">Harcamalar bu günden itibaren sayılır.</p>
+
+          <label for="budget-pw">Şifren (doğrulama için)</label>
+          <input id="budget-pw" type="password" autocomplete="current-password" placeholder="Şifreni gir" />
+
+          <p id="budget-error" class="error hidden" role="alert"></p>
+
+          <button type="submit" id="budget-submit" class="primary-btn">Doğrula ve Kaydet</button>
+          <button type="button" id="budget-cancel" class="secondary-btn hidden">Vazgeç</button>
+        </form>
+      </section>
+
+      <!-- ============ HARCAMALAR ============ -->
+      <section id="tab-expenses" class="tab">
+        <h2>Harcamalar</h2>
+
+        <div id="exp-locked" class="card hidden">
+          <p>Harcama eklemek için önce Ana Sayfa'dan bütçeni girmelisin.</p>
+          <button type="button" class="primary-btn" data-goto="home">Ana Sayfa'ya git</button>
+        </div>
+
+        <form id="exp-form" class="card hidden" novalidate autocomplete="off">
+          <h3>Yeni harcama</h3>
+          <p id="exp-info" class="hint hidden"></p>
+
+          <label for="exp-amount">Tutar (TL)</label>
+          <input id="exp-amount" type="text" inputmode="decimal" placeholder="Örn: 85,50" maxlength="16" />
+
+          <label>Bölüm</label>
+          <div class="chips" id="cat-chips"></div>
+
+          <label for="exp-date">Tarih</label>
+          <input id="exp-date" type="date" />
+
+          <label for="exp-note">Not (isteğe bağlı)</label>
+          <input id="exp-note" type="text" maxlength="60" placeholder="Örn: öğle yemeği" />
+
+          <p id="exp-error" class="error hidden" role="alert"></p>
+          <button type="submit" id="exp-submit" class="primary-btn">Harcamayı Ekle</button>
+        </form>
+
+        <p class="suggest" aria-hidden="true">💡 Öneri eklemek için: <span class="handle">@beratengineer</span></p>
+
+        <div id="exp-list"></div>
+      </section>
+
+      <!-- ============ RAPORLAR ============ -->
+      <section id="tab-reports" class="tab">
+        <h2>Raporlar</h2>
+
+        <div id="rep-locked" class="card hidden">
+          <p>Raporları görmek için önce Ana Sayfa'dan bütçeni girmelisin.</p>
+          <button type="button" class="primary-btn" data-goto="home">Ana Sayfa'ya git</button>
+        </div>
+
+        <div id="rep-content" class="hidden">
+          <div class="card">
+            <h3>Dönem hesabı</h3>
+            <p class="hint">Seçtiğin günden başlayarak her dönem sonunda toplam gider hesaplanır.</p>
+
+            <label for="period-start">Dönemin başladığı gün</label>
+            <input id="period-start" type="date" />
+
+            <label>Dönem uzunluğu</label>
+            <div class="chips" id="period-chips">
+              <button type="button" class="chip" data-len="7">7 gün</button>
+              <button type="button" class="chip" data-len="14">14 gün</button>
+              <button type="button" class="chip" data-len="30">30 gün</button>
+              <button type="button" class="chip" data-len="custom">Özel gün seç</button>
+            </div>
+
+            <div id="custom-end-wrap" class="hidden">
+              <label for="period-end">Dönemin bittiği gün (en az 7 gün)</label>
+              <input id="period-end" type="date" />
+            </div>
+
+            <p id="period-error" class="error hidden" role="alert"></p>
+            <button type="button" id="period-save" class="primary-btn">Dönemi Kaydet</button>
+
+            <div id="period-summary" class="period-summary"></div>
+          </div>
+
+          <div class="card">
+            <h3>Günlük harcamalar</h3>
+            <div id="daily-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ PROFİL ============ -->
+      <section id="tab-profile" class="tab">
+        <h2>Profil</h2>
+
+        <div class="profile-card">
+          <div class="avatar" id="avatar">
+            <img id="avatar-img" alt="Profil fotoğrafı" class="hidden" />
+            <span id="avatar-letter">?</span>
+          </div>
+          <div>
+            <div class="muted">Öğrenci Numarası</div>
+            <div class="big" id="profile-no">-</div>
+          </div>
+        </div>
+
+        <input type="file" id="photo-input" accept="image/*" class="hidden" />
+        <button type="button" id="photo-btn" class="secondary-btn">📷 Profil fotoğrafı ekle / değiştir</button>
+
+        <div class="card info-rows">
+          <div class="row"><span class="muted">Bölüm</span><strong id="profile-dept">-</strong></div>
+          <div class="row"><span class="muted">Doğum günü</span><strong id="profile-birth">-</strong></div>
+          <div class="row"><span class="muted">Yaş</span><strong id="profile-age">-</strong></div>
+        </div>
+
+        <div class="card contact-card">
+          <h3>Geliştiricimizle iletişime geçin</h3>
+          <p class="hint">Öneri, hata ya da fikirlerin için Instagram'dan yazabilirsin.</p>
+          <a class="contact-link" href="https://www.instagram.com/beratengineer/" target="_blank" rel="noopener noreferrer">📸 @beratengineer</a>
+        </div>
+
+        <button id="logout-btn" class="danger-btn">Çıkış Yap</button>
+        <button type="button" id="btn-delete-toggle" class="outline-danger-btn">🗑 Hesabı Sil</button>
+
+        <form id="delete-form" class="card danger-card hidden" novalidate autocomplete="off">
+          <h3>Hesabı kalıcı olarak sil</h3>
+          <p class="hint">Bu işlem geri alınamaz. Hesabın, bütçen, tüm harcamaların ve profil fotoğrafın silinir. İstersen aynı öğrenci numarasıyla sonradan yeniden kayıt olabilirsin.</p>
+
+          <label for="delete-pw">Şifren (doğrulama için)</label>
+          <input id="delete-pw" type="password" autocomplete="current-password" placeholder="Şifreni gir" />
+
+          <p id="delete-error" class="error hidden" role="alert"></p>
+
+          <button type="submit" id="delete-submit" class="danger-btn">Hesabımı Kalıcı Olarak Sil</button>
+          <button type="button" id="delete-cancel" class="secondary-btn">Vazgeç</button>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
